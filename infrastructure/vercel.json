@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "public": true,
+  "github": {
+    "enabled": true
+  },
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "build": {
+    "env": {
+      "NODE_ENV": "production"
+    }
+  },
+  "functions": {
+    "apps/api-backend/main.py": {
+      "runtime": "python3.9"
+    }
+  }
+}

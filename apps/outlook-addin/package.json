@@ -1,0 +1,36 @@
+{
+  "name": "smartmeet-outlook-addin",
+  "version": "1.0.0",
+  "description": "SmartMeet Outlook Add-in for intelligent meeting scheduling",
+  "private": true,
+  "scripts": {
+    "build": "webpack --mode=production",
+    "build:dev": "webpack --mode=development",
+    "dev": "webpack serve --mode=development",
+    "start": "webpack serve --mode=development --port 3000",
+    "validate": "office-addin-manifest validate manifest.xml"
+  },
+  "dependencies": {
+    "@types/office-js": "^1.0.374",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.38",
+    "@types/react-dom": "^18.2.17",
+    "copy-webpack-plugin": "^11.0.0",
+    "css-loader": "^6.8.1",
+    "file-loader": "^6.2.0",
+    "html-loader": "^4.2.0",
+    "html-webpack-plugin": "^5.5.3",
+    "office-addin-dev-certs": "^1.11.3",
+    "source-map-loader": "^4.0.1",
+    "style-loader": "^3.3.3",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.2.2",
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-server": "^4.15.1"
+  },
+  "homepage": "https://smartmeet.vercel.app/outlook-addin/"
+}

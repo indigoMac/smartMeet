@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SmartMeet</title>
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #f5f5f5;
+      }
+
+      .taskpane-container {
+        padding: 16px;
+        max-width: 100%;
+      }
+
+      .taskpane-header {
+        text-align: center;
+        margin-bottom: 20px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid #e1e1e1;
+      }
+
+      .taskpane-header h1 {
+        margin: 0;
+        color: #0078d4;
+        font-size: 24px;
+      }
+
+      .taskpane-header p {
+        margin: 4px 0 0 0;
+        color: #666;
+        font-size: 14px;
+      }
+
+      .taskpane-content {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .error-message {
+        background-color: #fed7d7;
+        border: 1px solid #feb2b2;
+        border-radius: 4px;
+        padding: 12px;
+        color: #c53030;
+        font-size: 14px;
+      }
+
+      .recipients-section h3,
+      .results-section h3 {
+        margin: 0 0 8px 0;
+        color: #333;
+        font-size: 16px;
+      }
+
+      .recipients-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+
+      .recipient-item {
+        background-color: #e3f2fd;
+        border-radius: 4px;
+        padding: 8px 12px;
+        margin-bottom: 4px;
+        font-size: 14px;
+        color: #1976d2;
+      }
+
+      .no-recipients {
+        color: #666;
+        font-style: italic;
+        font-size: 14px;
+        margin: 0;
+      }
+
+      .actions-section {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .primary-button,
+      .secondary-button {
+        padding: 12px 16px;
+        border: none;
+        border-radius: 4px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .primary-button {
+        background-color: #0078d4;
+        color: white;
+      }
+
+      .primary-button:hover:not(:disabled) {
+        background-color: #106ebe;
+      }
+
+      .primary-button:disabled {
+        background-color: #ccc;
+        cursor: not-allowed;
+      }
+
+      .secondary-button {
+        background-color: #f3f3f3;
+        color: #333;
+        border: 1px solid #ddd;
+      }
+
+      .secondary-button:hover:not(:disabled) {
+        background-color: #e6e6e6;
+      }
+
+      .meeting-times {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .meeting-time-card {
+        background-color: white;
+        border: 1px solid #e1e1e1;
+        border-radius: 4px;
+        padding: 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .time-info {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .time-info strong {
+        color: #333;
+        font-size: 14px;
+      }
+
+      .time-info span {
+        color: #666;
+        font-size: 12px;
+      }
+
+      .confidence {
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .confidence-high {
+        background-color: #d4edda;
+        color: #155724;
+      }
+
+      .confidence-medium {
+        background-color: #fff3cd;
+        color: #856404;
+      }
+
+      .confidence-low {
+        background-color: #f8d7da;
+        color: #721c24;
+      }
+
+      .portal-link {
+        background-color: white;
+        border: 1px solid #e1e1e1;
+        border-radius: 4px;
+        padding: 12px;
+        margin: 16px 0;
+      }
+
+      .portal-link p {
+        margin: 0 0 8px 0;
+        font-size: 14px;
+        color: #333;
+      }
+
+      .portal-url {
+        display: block;
+        background-color: #f5f5f5;
+        padding: 8px;
+        border-radius: 4px;
+        font-family: monospace;
+        font-size: 12px;
+        color: #0078d4;
+        word-break: break-all;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

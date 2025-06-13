@@ -1,0 +1,35 @@
+# Node
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+
+# Build outputs
+dist/
+build/
+.next/
+coverage/
+
+# Environment and secrets
+.env
+.env.*
+*.env
+
+# Office Add-in dev certs
+.office-addin-dev-certs/
+
+# Mac system files
+.DS_Store
+
+# Logs
+*.log
+
+# VSCode
+.vscode/
+
+# Ignore local dev files
+*.local
+
+# Ignore submodule git folders
+apps/web-portal/.git/ 
