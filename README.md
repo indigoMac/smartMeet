@@ -153,3 +153,4 @@ The add-in manifest references the Vercel deployment:
 ## License
 
 MIT License
+# Force deployment Fri Jun 13 16:13:02 BST 2025
