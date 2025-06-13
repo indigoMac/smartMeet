@@ -3,6 +3,7 @@
   "outputDirectory": "dist",
   "framework": null,
   "installCommand": "npm install",
+  "public": true,
   "headers": [
     {
       "source": "/(.*)",
@@ -25,5 +26,7 @@
         }
       ]
     }
-  ]
+  ],
+  "functions": {},
+  "rewrites": []
 }
