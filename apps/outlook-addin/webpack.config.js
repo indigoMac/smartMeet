@@ -7,12 +7,24 @@ const os = require("os");
 module.exports = (env, argv) => {
   const isProduction = argv.mode === "production";
 
-  // Path to the trusted Office dev certificates
-  const certPath = path.join(os.homedir(), ".office-addin-dev-certs");
-  const httpsOptions = {
-    key: fs.readFileSync(path.join(certPath, "localhost.key")),
-    cert: fs.readFileSync(path.join(certPath, "localhost.crt")),
-  };
+  // Only load HTTPS options in development mode
+  let httpsOptions = undefined;
+  if (!isProduction) {
+    try {
+      const certPath = path.join(os.homedir(), ".office-addin-dev-certs");
+      if (
+        fs.existsSync(path.join(certPath, "localhost.key")) &&
+        fs.existsSync(path.join(certPath, "localhost.crt"))
+      ) {
+        httpsOptions = {
+          key: fs.readFileSync(path.join(certPath, "localhost.key")),
+          cert: fs.readFileSync(path.join(certPath, "localhost.crt")),
+        };
+      }
+    } catch (error) {
+      console.warn("Could not load dev certificates, using HTTP");
+    }
+  }
 
   return {
     entry: {
