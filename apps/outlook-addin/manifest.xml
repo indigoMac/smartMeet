@@ -11,8 +11,8 @@
     <DefaultLocale>en-US</DefaultLocale>
     <DisplayName DefaultValue="SmartMeet" />
     <Description DefaultValue="Find optimal meeting times across calendars" />
-    <IconUrl DefaultValue="https://smart-meet-add-b51rvo61n-macs-projects-1d8fa0f1.vercel.app/assets/icon-32.png" />
-    <HighResolutionIconUrl DefaultValue="https://smart-meet-add-b51rvo61n-macs-projects-1d8fa0f1.vercel.app/assets/icon-128.png" />
+    <IconUrl DefaultValue="https://smart-meet-add-b51rvo61n-macs-projects-1d8fa0f1.vercel.app/assets/icon-32.svg" />
+    <HighResolutionIconUrl DefaultValue="https://smart-meet-add-b51rvo61n-macs-projects-1d8fa0f1.vercel.app/assets/icon-80.svg" />
     <SupportUrl DefaultValue="https://smart-meet-five.vercel.app" />
 
     <AppDomains>
@@ -89,9 +89,9 @@
 
         <Resources>
             <bt:Images>
-                <bt:Image id="Icon.16x16" DefaultValue="https://smart-meet-add-b51rvo61n-macs-projects-1d8fa0f1.vercel.app/assets/icon-16.png"/>
-                <bt:Image id="Icon.32x32" DefaultValue="https://smart-meet-add-b51rvo61n-macs-projects-1d8fa0f1.vercel.app/assets/icon-32.png"/>
-                <bt:Image id="Icon.80x80" DefaultValue="https://smart-meet-add-b51rvo61n-macs-projects-1d8fa0f1.vercel.app/assets/icon-80.png"/>
+                <bt:Image id="Icon.16x16" DefaultValue="https://smart-meet-add-b51rvo61n-macs-projects-1d8fa0f1.vercel.app/assets/icon-16.svg"/>
+                <bt:Image id="Icon.32x32" DefaultValue="https://smart-meet-add-b51rvo61n-macs-projects-1d8fa0f1.vercel.app/assets/icon-32.svg"/>
+                <bt:Image id="Icon.80x80" DefaultValue="https://smart-meet-add-b51rvo61n-macs-projects-1d8fa0f1.vercel.app/assets/icon-80.svg"/>
             </bt:Images>
             <bt:Urls>
                 <bt:Url id="Commands.Url" DefaultValue="https://smart-meet-add-b51rvo61n-macs-projects-1d8fa0f1.vercel.app/commands.html"/>
