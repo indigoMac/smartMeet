@@ -1,9 +1,9 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 
-export default function SuccessPage() {
+function SuccessPageContent() {
   const searchParams = useSearchParams();
   const [provider, setProvider] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
@@ -114,45 +114,64 @@ export default function SuccessPage() {
             now use the Outlook add-in to find optimal meeting times.
           </p>
 
-          {/* User ID (for debugging) */}
+          {/* User ID Display (for debugging) */}
           {userId && (
-            <div className="bg-gray-50 rounded-lg p-4 mb-6">
-              <p className="text-sm text-gray-500">Session ID:</p>
+            <div className="mb-6 p-3 bg-gray-50 rounded-lg">
+              <p className="text-xs text-gray-500 mb-1">User ID:</p>
               <p className="text-sm font-mono text-gray-700 break-all">
                 {userId}
               </p>
             </div>
           )}
 
-          {/* Next Steps */}
-          <div className="space-y-4">
+          {/* Action Buttons */}
+          <div className="space-y-3">
             <button
               onClick={() => window.close()}
-              className="w-full px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
             >
               Close Window
             </button>
-
             <button
               onClick={() => (window.location.href = "/")}
-              className="w-full px-4 py-2 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition-colors"
+              className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
             >
               Back to Home
             </button>
           </div>
 
-          {/* Instructions */}
-          <div className="mt-8 p-4 bg-blue-50 rounded-lg">
-            <h3 className="text-sm font-semibold text-blue-900 mb-2">
-              What&apos;s Next?
+          {/* Next Steps */}
+          <div className="mt-8 text-left">
+            <h3 className="text-sm font-semibold text-gray-900 mb-2">
+              Next Steps:
             </h3>
-            <p className="text-sm text-blue-800">
-              Install the SmartMeet Outlook add-in to start finding optimal
-              meeting times directly from your email.
-            </p>
+            <ul className="text-xs text-gray-600 space-y-1">
+              <li>• Open Microsoft Outlook</li>
+              <li>• Install the SmartMeet add-in</li>
+              <li>
+                • Use &quot;Find Meeting Times&quot; when composing emails
+              </li>
+            </ul>
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SuccessPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading...</p>
+          </div>
+        </div>
+      }
+    >
+      <SuccessPageContent />
+    </Suspense>
   );
 }
