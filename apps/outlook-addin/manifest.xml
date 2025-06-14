@@ -6,11 +6,11 @@
            xsi:type="MailApp">
 
     <Id>F941E618-AAC6-4780-916C-D0491304AE79</Id>
-    <Version>1.0.0.2</Version>
+    <Version>1.0.0.3</Version>
     <ProviderName>SmartMeet</ProviderName>
     <DefaultLocale>en-US</DefaultLocale>
     <DisplayName DefaultValue="SmartMeet" />
-    <Description DefaultValue="Find optimal meeting times across calendars" />
+    <Description DefaultValue="Automatically schedule meetings across calendars" />
     <IconUrl DefaultValue="https://smart-meet-add-kr0r4qu85-macs-projects-1d8fa0f1.vercel.app/icon-32.png" />
     <HighResolutionIconUrl DefaultValue="https://smart-meet-add-kr0r4qu85-macs-projects-1d8fa0f1.vercel.app/icon-80.png" />
     <SupportUrl DefaultValue="https://smart-meet-five.vercel.app" />
@@ -19,6 +19,7 @@
         <AppDomain>https://smart-meet-add-kr0r4qu85-macs-projects-1d8fa0f1.vercel.app</AppDomain>
         <AppDomain>https://smart-meet-five.vercel.app</AppDomain>
         <AppDomain>https://smartmeet-production.up.railway.app</AppDomain>
+        <AppDomain>https://login.microsoftonline.com</AppDomain>
     </AppDomains>
 
     <Hosts>
@@ -35,15 +36,23 @@
         <Form xsi:type="ItemRead">
             <DesktopSettings>
                 <SourceLocation DefaultValue="https://smart-meet-add-kr0r4qu85-macs-projects-1d8fa0f1.vercel.app/taskpane.html"/>
-                <RequestedHeight>450</RequestedHeight>
+                <RequestedHeight>500</RequestedHeight>
+            </DesktopSettings>
+        </Form>
+        <Form xsi:type="ItemEdit">
+            <DesktopSettings>
+                <SourceLocation DefaultValue="https://smart-meet-add-kr0r4qu85-macs-projects-1d8fa0f1.vercel.app/taskpane.html"/>
+                <RequestedHeight>500</RequestedHeight>
             </DesktopSettings>
         </Form>
     </FormSettings>
 
-    <Permissions>ReadWriteItem</Permissions>
+    <Permissions>ReadWriteMailbox</Permissions>
 
     <Rule xsi:type="RuleCollection" Mode="Or">
         <Rule xsi:type="ItemIs" ItemType="Message" FormType="Read"/>
+        <Rule xsi:type="ItemIs" ItemType="Message" FormType="Edit"/>
+        <Rule xsi:type="ItemIs" ItemType="Appointment" FormType="Edit"/>
     </Rule>
 
     <DisableEntityHighlighting>false</DisableEntityHighlighting>
@@ -82,6 +91,29 @@
                             </Group>
                         </OfficeTab>
                     </ExtensionPoint>
+
+                    <ExtensionPoint xsi:type="MessageComposeCommandSurface">
+                        <OfficeTab id="TabDefault">
+                            <Group id="msgComposeGroup">
+                                <Label resid="GroupLabel"/>
+                                <Control xsi:type="Button" id="msgComposeOpenPaneButton">
+                                    <Label resid="TaskpaneButton.Label"/>
+                                    <Supertip>
+                                        <Title resid="TaskpaneButton.Label"/>
+                                        <Description resid="TaskpaneButton.Tooltip"/>
+                                    </Supertip>
+                                    <Icon>
+                                        <bt:Image size="16" resid="Icon.16x16"/>
+                                        <bt:Image size="32" resid="Icon.32x32"/>
+                                        <bt:Image size="80" resid="Icon.80x80"/>
+                                    </Icon>
+                                    <Action xsi:type="ShowTaskpane">
+                                        <SourceLocation resid="Taskpane.Url"/>
+                                    </Action>
+                                </Control>
+                            </Group>
+                        </OfficeTab>
+                    </ExtensionPoint>
                 </DesktopFormFactor>
             </Host>
         </Hosts>
@@ -98,10 +130,10 @@
             </bt:Urls>
             <bt:ShortStrings>
                 <bt:String id="GroupLabel" DefaultValue="SmartMeet"/>
-                <bt:String id="TaskpaneButton.Label" DefaultValue="Show Taskpane"/>
+                <bt:String id="TaskpaneButton.Label" DefaultValue="Schedule Meeting"/>
             </bt:ShortStrings>
             <bt:LongStrings>
-                <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Opens a pane displaying SmartMeet features"/>
+                <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Automatically schedule meetings across calendars"/>
             </bt:LongStrings>
         </Resources>
     </VersionOverrides>

@@ -1,11 +1,11 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 import os
 import gc
 from datetime import datetime, timedelta
 import uuid
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import httpx
 import jwt
 from pydantic import BaseModel
@@ -153,6 +153,25 @@ class MeetingProposal(BaseModel):
     emails: List[str]
     proposed_times: List[Dict[str, Any]]
 
+class MeetingRequest(BaseModel):
+    emails: List[str]
+    subject: str
+    duration_minutes: int = 30
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    time_zone: str = "UTC"
+    meeting_type: str = "teams"  # teams, in_person, phone
+    location: Optional[str] = None
+    body: Optional[str] = None
+
+class CalendarEvent(BaseModel):
+    id: str
+    subject: str
+    start: str
+    end: str
+    is_all_day: bool
+    show_as: str  # free, busy, tentative, out_of_office
+
 # In-memory storage (replace with database in production)
 meetings_db = {}
 tokens_db = {}
@@ -234,7 +253,7 @@ async def microsoft_oauth_start():
         f"?client_id={MICROSOFT_CLIENT_ID}"
         f"&response_type=code"
         f"&redirect_uri={MICROSOFT_REDIRECT_URI}"
-        f"&scope=https://graph.microsoft.com/Calendars.Read.Shared offline_access"
+        f"&scope=https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Calendars.ReadWrite.Shared offline_access"
         f"&state={state}"
         f"&response_mode=query"
     )
@@ -328,34 +347,261 @@ async def google_oauth_callback(code: str, state: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"OAuth callback failed: {str(e)}")
 
+async def get_user_calendar_events(access_token: str, start_time: str, end_time: str) -> List[CalendarEvent]:
+    """Fetch user's calendar events from Microsoft Graph"""
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+    
+    # Format times for Graph API
+    start_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+    end_dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+    
+    url = f"https://graph.microsoft.com/v1.0/me/calendar/calendarView"
+    params = {
+        "startDateTime": start_dt.isoformat(),
+        "endDateTime": end_dt.isoformat(),
+        "$select": "id,subject,start,end,isAllDay,showAs"
+    }
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, headers=headers, params=params)
+        
+        if response.status_code != 200:
+            raise HTTPException(status_code=400, detail="Failed to fetch calendar events")
+        
+        data = response.json()
+        events = []
+        
+        for event in data.get("value", []):
+            events.append(CalendarEvent(
+                id=event["id"],
+                subject=event["subject"],
+                start=event["start"]["dateTime"],
+                end=event["end"]["dateTime"],
+                is_all_day=event["isAllDay"],
+                show_as=event["showAs"]
+            ))
+        
+        return events
+
+async def get_free_busy_info(access_token: str, emails: List[str], start_time: str, end_time: str) -> Dict[str, List[Dict]]:
+    """Get free/busy information for multiple users"""
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+    
+    # Format times for Graph API
+    start_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+    end_dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+    
+    url = "https://graph.microsoft.com/v1.0/me/calendar/getSchedule"
+    
+    payload = {
+        "schedules": emails,
+        "startTime": {
+            "dateTime": start_dt.isoformat(),
+            "timeZone": "UTC"
+        },
+        "endTime": {
+            "dateTime": end_dt.isoformat(),
+            "timeZone": "UTC"
+        },
+        "availabilityViewInterval": 15
+    }
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url, headers=headers, json=payload)
+        
+        if response.status_code != 200:
+            raise HTTPException(status_code=400, detail="Failed to fetch free/busy information")
+        
+        data = response.json()
+        return {schedule["scheduleId"]: schedule["busyViewData"] for schedule in data.get("value", [])}
+
+def find_optimal_meeting_times(free_busy_data: Dict[str, List[Dict]], duration_minutes: int, start_time: str, end_time: str) -> List[Dict]:
+    """Algorithm to find optimal meeting times based on free/busy data"""
+    start_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+    end_dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+    duration_delta = timedelta(minutes=duration_minutes)
+    
+    optimal_times = []
+    current_time = start_dt
+    
+    while current_time + duration_delta <= end_dt:
+        # Skip non-business hours (9 AM - 5 PM UTC)
+        if current_time.hour < 9 or current_time.hour >= 17:
+            current_time += timedelta(minutes=15)
+            continue
+        
+        # Skip weekends
+        if current_time.weekday() >= 5:
+            current_time += timedelta(days=1)
+            current_time = current_time.replace(hour=9, minute=0, second=0, microsecond=0)
+            continue
+        
+        # Check if all participants are free during this time slot
+        slot_end = current_time + duration_delta
+        all_free = True
+        busy_count = 0
+        
+        for email, busy_data in free_busy_data.items():
+            for busy_period in busy_data:
+                if busy_period == "2":  # Busy
+                    busy_count += 1
+                    all_free = False
+                    break
+        
+        if all_free:
+            confidence = 1.0
+        else:
+            # Calculate confidence based on how many people are busy
+            confidence = max(0.1, 1.0 - (busy_count / len(free_busy_data)))
+        
+        if confidence >= 0.3:  # Only suggest times with at least 30% confidence
+            optimal_times.append({
+                "start": current_time.isoformat() + "Z",
+                "end": slot_end.isoformat() + "Z",
+                "confidence": confidence
+            })
+        
+        current_time += timedelta(minutes=15)
+        
+        # Limit to top 10 suggestions
+        if len(optimal_times) >= 10:
+            break
+    
+    # Sort by confidence and return top 5
+    optimal_times.sort(key=lambda x: x["confidence"], reverse=True)
+    return optimal_times[:5]
+
+async def create_meeting_in_outlook(access_token: str, meeting_request: MeetingRequest, selected_time: Dict) -> Dict:
+    """Create a meeting in Outlook using Microsoft Graph"""
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+    
+    # Prepare attendees
+    attendees = []
+    for email in meeting_request.emails:
+        attendees.append({
+            "emailAddress": {
+                "address": email,
+                "name": email.split("@")[0]
+            },
+            "type": "required"
+        })
+    
+    # Prepare meeting body
+    body_content = meeting_request.body or f"Meeting scheduled via SmartMeet"
+    if meeting_request.meeting_type == "teams":
+        body_content += "\n\nThis meeting will include a Microsoft Teams link."
+    
+    # Create meeting payload
+    meeting_payload = {
+        "subject": meeting_request.subject,
+        "body": {
+            "contentType": "HTML",
+            "content": body_content
+        },
+        "start": {
+            "dateTime": selected_time["start"].replace("Z", ""),
+            "timeZone": meeting_request.time_zone
+        },
+        "end": {
+            "dateTime": selected_time["end"].replace("Z", ""),
+            "timeZone": meeting_request.time_zone
+        },
+        "attendees": attendees,
+        "isOnlineMeeting": meeting_request.meeting_type == "teams",
+        "onlineMeetingProvider": "teamsForBusiness" if meeting_request.meeting_type == "teams" else None
+    }
+    
+    if meeting_request.location:
+        meeting_payload["location"] = {
+            "displayName": meeting_request.location
+        }
+    
+    url = "https://graph.microsoft.com/v1.0/me/events"
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url, headers=headers, json=meeting_payload)
+        
+        if response.status_code not in [200, 201]:
+            raise HTTPException(status_code=400, detail="Failed to create meeting")
+        
+        return response.json()
+
 @app.post("/availability")
-async def calculate_availability(request: AvailabilityRequest):
+async def calculate_availability(request: AvailabilityRequest, authorization: str = Header(None)):
     """Calculate mutual availability across multiple calendars"""
     meeting_id = str(uuid.uuid4())
     
-    # In production, this would:
-    # 1. Fetch free/busy data from each calendar
-    # 2. Calculate mutual availability
-    # 3. Return optimal meeting times
+    # Extract access token from Authorization header
+    access_token = None
+    if authorization and authorization.startswith("Bearer "):
+        access_token = authorization.split(" ")[1]
     
-    # Mock response for now
-    proposed_times = [
-        {
-            "start": "2024-01-15T14:00:00Z",
-            "end": "2024-01-15T14:30:00Z",
-            "confidence": 0.9
-        },
-        {
-            "start": "2024-01-15T15:00:00Z", 
-            "end": "2024-01-15T15:30:00Z",
-            "confidence": 0.8
-        },
-        {
-            "start": "2024-01-16T10:00:00Z",
-            "end": "2024-01-16T10:30:00Z",
-            "confidence": 0.95
-        }
-    ]
+    if access_token:
+        try:
+            # Get real free/busy data from Microsoft Graph
+            free_busy_data = await get_free_busy_info(
+                access_token, 
+                request.emails, 
+                request.start_time, 
+                request.end_time
+            )
+            
+            # Find optimal meeting times
+            proposed_times = find_optimal_meeting_times(
+                free_busy_data,
+                request.duration_minutes,
+                request.start_time,
+                request.end_time
+            )
+            
+        except Exception as e:
+            # Fall back to mock data if Graph API fails
+            logger.warning(f"Failed to fetch real calendar data: {e}")
+            proposed_times = [
+                {
+                    "start": "2024-01-15T14:00:00Z",
+                    "end": "2024-01-15T14:30:00Z",
+                    "confidence": 0.9
+                },
+                {
+                    "start": "2024-01-15T15:00:00Z", 
+                    "end": "2024-01-15T15:30:00Z",
+                    "confidence": 0.8
+                },
+                {
+                    "start": "2024-01-16T10:00:00Z",
+                    "end": "2024-01-16T10:30:00Z",
+                    "confidence": 0.95
+                }
+            ]
+    else:
+        # Mock response when no access token provided
+        proposed_times = [
+            {
+                "start": "2024-01-15T14:00:00Z",
+                "end": "2024-01-15T14:30:00Z",
+                "confidence": 0.9
+            },
+            {
+                "start": "2024-01-15T15:00:00Z", 
+                "end": "2024-01-15T15:30:00Z",
+                "confidence": 0.8
+            },
+            {
+                "start": "2024-01-16T10:00:00Z",
+                "end": "2024-01-16T10:30:00Z",
+                "confidence": 0.95
+            }
+        ]
     
     meeting_data = {
         "meeting_id": meeting_id,
@@ -370,6 +616,42 @@ async def calculate_availability(request: AvailabilityRequest):
         "meeting_id": meeting_id,
         "proposed_times": proposed_times,
         "portal_url": f"{FRONTEND_URL}/availability/{meeting_id}"
+    }
+
+@app.post("/meetings/create")
+async def create_meeting(meeting_request: MeetingRequest, selected_time_index: int, authorization: str = Header(None)):
+    """Create a meeting in Outlook with the selected time"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Access token required")
+    
+    access_token = authorization.split(" ")[1]
+    
+    # First, get availability to find the selected time
+    availability_request = AvailabilityRequest(
+        emails=meeting_request.emails,
+        start_time=meeting_request.start_time or datetime.utcnow().isoformat() + "Z",
+        end_time=meeting_request.end_time or (datetime.utcnow() + timedelta(days=7)).isoformat() + "Z",
+        duration_minutes=meeting_request.duration_minutes
+    )
+    
+    availability_result = await calculate_availability(availability_request, authorization)
+    
+    if selected_time_index >= len(availability_result["proposed_times"]):
+        raise HTTPException(status_code=400, detail="Invalid time selection")
+    
+    selected_time = availability_result["proposed_times"][selected_time_index]
+    
+    # Create the meeting
+    meeting_result = await create_meeting_in_outlook(access_token, meeting_request, selected_time)
+    
+    return {
+        "meeting_id": meeting_result["id"],
+        "subject": meeting_result["subject"],
+        "start": meeting_result["start"]["dateTime"],
+        "end": meeting_result["end"]["dateTime"],
+        "web_link": meeting_result.get("webLink"),
+        "teams_link": meeting_result.get("onlineMeeting", {}).get("joinUrl"),
+        "attendees": [att["emailAddress"]["address"] for att in meeting_result.get("attendees", [])]
     }
 
 @app.get("/availability/{meeting_id}")

@@ -11,11 +11,44 @@ interface AvailabilityResult {
   portal_url: string;
 }
 
+interface MeetingCreationResult {
+  meeting_id: string;
+  subject: string;
+  start: string;
+  end: string;
+  web_link?: string;
+  teams_link?: string;
+  attendees: string[];
+}
+
+interface MeetingConfig {
+  subject: string;
+  duration: number;
+  meetingType: "teams" | "in_person" | "phone";
+  location: string;
+  body: string;
+  timeRange: number; // days to look ahead
+}
+
 const TaskPane: React.FC = () => {
   const [recipients, setRecipients] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AvailabilityResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [createdMeeting, setCreatedMeeting] =
+    useState<MeetingCreationResult | null>(null);
+  const [showConfig, setShowConfig] = useState(false);
+
+  const [config, setConfig] = useState<MeetingConfig>({
+    subject: "",
+    duration: 30,
+    meetingType: "teams",
+    location: "",
+    body: "",
+    timeRange: 7,
+  });
 
   const API_BASE_URL =
     process.env.NODE_ENV === "production"
@@ -27,9 +60,53 @@ const TaskPane: React.FC = () => {
     Office.onReady((info) => {
       if (info.host === Office.HostType.Outlook) {
         loadRecipients();
+        checkAuthStatus();
       }
     });
   }, []);
+
+  const checkAuthStatus = () => {
+    // Check if we have a stored access token
+    const token = localStorage.getItem("smartmeet_access_token");
+    if (token) {
+      setAccessToken(token);
+      setIsAuthenticated(true);
+    }
+  };
+
+  const authenticateWithMicrosoft = async () => {
+    try {
+      setLoading(true);
+
+      // Get OAuth URL from backend
+      const response = await fetch(`${API_BASE_URL}/connect/microsoft`);
+      const data = await response.json();
+
+      // Open OAuth popup
+      const popup = window.open(
+        data.auth_url,
+        "oauth",
+        "width=500,height=600,scrollbars=yes,resizable=yes"
+      );
+
+      // Listen for OAuth completion
+      const checkClosed = setInterval(() => {
+        if (popup?.closed) {
+          clearInterval(checkClosed);
+          // Check for token in localStorage (set by OAuth callback)
+          const token = localStorage.getItem("smartmeet_access_token");
+          if (token) {
+            setAccessToken(token);
+            setIsAuthenticated(true);
+          }
+          setLoading(false);
+        }
+      }, 1000);
+    } catch (err) {
+      setError("Failed to authenticate with Microsoft");
+      setLoading(false);
+    }
+  };
 
   const loadRecipients = async () => {
     try {
@@ -49,6 +126,14 @@ const TaskPane: React.FC = () => {
           allEmails.push(...ccEmails);
         }
 
+        // Get subject for meeting title
+        if (item.subject && !config.subject) {
+          setConfig((prev) => ({
+            ...prev,
+            subject: `Meeting: ${item.subject}`,
+          }));
+        }
+
         setRecipients(allEmails);
       }
     } catch (err) {
@@ -58,6 +143,11 @@ const TaskPane: React.FC = () => {
   };
 
   const findMeetingTimes = async () => {
+    if (!isAuthenticated) {
+      setError("Please authenticate with Microsoft first");
+      return;
+    }
+
     if (recipients.length === 0) {
       setError("No recipients found. Please add recipients to your email.");
       return;
@@ -71,14 +161,15 @@ const TaskPane: React.FC = () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           emails: recipients,
           start_time: new Date().toISOString(),
           end_time: new Date(
-            Date.now() + 7 * 24 * 60 * 60 * 1000
-          ).toISOString(), // Next 7 days
-          duration_minutes: 30,
+            Date.now() + config.timeRange * 24 * 60 * 60 * 1000
+          ).toISOString(),
+          duration_minutes: config.duration,
         }),
       });
 
@@ -95,40 +186,79 @@ const TaskPane: React.FC = () => {
     }
   };
 
-  const insertMeetingTimes = async () => {
-    if (!result) return;
+  const createMeeting = async (timeIndex: number) => {
+    if (!isAuthenticated || !result) return;
+
+    setLoading(true);
+    setError(null);
 
     try {
-      const meetingTimesText = result.proposed_times
-        .map((time, index) => {
-          const start = new Date(time.start);
-          const end = new Date(time.end);
-          const confidence = Math.round(time.confidence * 100);
+      const response = await fetch(
+        `${API_BASE_URL}/meetings/create?selected_time_index=${timeIndex}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            emails: recipients,
+            subject: config.subject || "SmartMeet Scheduled Meeting",
+            duration_minutes: config.duration,
+            meeting_type: config.meetingType,
+            location: config.location,
+            body: config.body,
+            time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          }),
+        }
+      );
 
-          return `${
-            index + 1
-          }. ${start.toLocaleDateString()} ${start.toLocaleTimeString()} - ${end.toLocaleTimeString()} (${confidence}% confidence)`;
-        })
-        .join("\n");
+      if (!response.ok) {
+        throw new Error("Failed to create meeting");
+      }
 
-      const fullText = `SmartMeet has found the following optimal meeting times:\n\n${meetingTimesText}\n\nParticipants can view and select their preferred time at: ${result.portal_url}`;
+      const meetingData: MeetingCreationResult = await response.json();
+      setCreatedMeeting(meetingData);
+
+      // Optionally insert meeting details into email
+      await insertMeetingDetails(meetingData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create meeting");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const insertMeetingDetails = async (meeting: MeetingCreationResult) => {
+    try {
+      const meetingText = `
+Meeting Created Successfully!
+
+Subject: ${meeting.subject}
+Date & Time: ${new Date(meeting.start).toLocaleString()} - ${new Date(
+        meeting.end
+      ).toLocaleString()}
+${meeting.teams_link ? `Teams Link: ${meeting.teams_link}` : ""}
+${meeting.web_link ? `Outlook Link: ${meeting.web_link}` : ""}
+
+Attendees: ${meeting.attendees.join(", ")}
+
+Meeting invites have been sent to all participants.
+      `.trim();
 
       if (Office.context.mailbox.item && Office.context.mailbox.item.body) {
         Office.context.mailbox.item.body.setSelectedDataAsync(
-          fullText,
+          meetingText,
           { coercionType: Office.CoercionType.Text },
           (result) => {
             if (result.status === Office.AsyncResultStatus.Succeeded) {
-              console.log("Meeting times inserted successfully");
-            } else {
-              console.error("Failed to insert meeting times:", result.error);
+              console.log("Meeting details inserted successfully");
             }
           }
         );
       }
     } catch (err) {
-      console.error("Error inserting meeting times:", err);
-      setError("Failed to insert meeting times into email");
+      console.error("Error inserting meeting details:", err);
     }
   };
 
@@ -137,14 +267,113 @@ const TaskPane: React.FC = () => {
     return {
       date: date.toLocaleDateString(),
       time: date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      dayOfWeek: date.toLocaleDateString([], { weekday: "long" }),
     };
   };
+
+  const resetFlow = () => {
+    setResult(null);
+    setCreatedMeeting(null);
+    setError(null);
+  };
+
+  if (createdMeeting) {
+    return (
+      <div className="taskpane-container">
+        <header className="taskpane-header success">
+          <div className="success-icon">✓</div>
+          <h1>Meeting Created!</h1>
+          <p>Your meeting has been scheduled successfully</p>
+        </header>
+
+        <div className="taskpane-content">
+          <div className="meeting-summary">
+            <h3>{createdMeeting.subject}</h3>
+            <div className="meeting-details">
+              <p>
+                <strong>Date:</strong>{" "}
+                {new Date(createdMeeting.start).toLocaleDateString()}
+              </p>
+              <p>
+                <strong>Time:</strong>{" "}
+                {new Date(createdMeeting.start).toLocaleTimeString()} -{" "}
+                {new Date(createdMeeting.end).toLocaleTimeString()}
+              </p>
+              <p>
+                <strong>Attendees:</strong> {createdMeeting.attendees.length}{" "}
+                people
+              </p>
+
+              {createdMeeting.teams_link && (
+                <div className="teams-link">
+                  <p>
+                    <strong>Teams Meeting:</strong>
+                  </p>
+                  <a
+                    href={createdMeeting.teams_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Join Microsoft Teams Meeting
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="actions-section">
+            <button className="primary-button" onClick={resetFlow}>
+              Schedule Another Meeting
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="taskpane-container">
+        <header className="taskpane-header">
+          <h1>SmartMeet</h1>
+          <p>Automatically schedule meetings</p>
+        </header>
+
+        <div className="taskpane-content">
+          <div className="auth-section">
+            <div className="auth-icon">🔐</div>
+            <h3>Connect Your Calendar</h3>
+            <p>
+              To automatically schedule meetings, SmartMeet needs access to your
+              calendar.
+            </p>
+
+            <button
+              className="primary-button auth-button"
+              onClick={authenticateWithMicrosoft}
+              disabled={loading}
+            >
+              {loading ? "Connecting..." : "Connect Microsoft Calendar"}
+            </button>
+
+            <div className="privacy-note">
+              <small>
+                We only access your free/busy information to find optimal
+                meeting times. Your calendar details remain private.
+              </small>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="taskpane-container">
       <header className="taskpane-header">
         <h1>SmartMeet</h1>
-        <p>Find optimal meeting times</p>
+        <p>Automatically schedule meetings</p>
+        <div className="auth-status">✓ Connected</div>
       </header>
 
       <div className="taskpane-content">
@@ -171,67 +400,155 @@ const TaskPane: React.FC = () => {
           )}
         </div>
 
+        <div className="config-section">
+          <button
+            className="config-toggle"
+            onClick={() => setShowConfig(!showConfig)}
+          >
+            ⚙️ Meeting Settings {showConfig ? "▼" : "▶"}
+          </button>
+
+          {showConfig && (
+            <div className="config-panel">
+              <div className="config-row">
+                <label>Meeting Subject:</label>
+                <input
+                  type="text"
+                  value={config.subject}
+                  onChange={(e) =>
+                    setConfig((prev) => ({ ...prev, subject: e.target.value }))
+                  }
+                  placeholder="Enter meeting subject"
+                />
+              </div>
+
+              <div className="config-row">
+                <label>Duration:</label>
+                <select
+                  value={config.duration}
+                  onChange={(e) =>
+                    setConfig((prev) => ({
+                      ...prev,
+                      duration: parseInt(e.target.value),
+                    }))
+                  }
+                >
+                  <option value={15}>15 minutes</option>
+                  <option value={30}>30 minutes</option>
+                  <option value={60}>1 hour</option>
+                  <option value={90}>1.5 hours</option>
+                  <option value={120}>2 hours</option>
+                </select>
+              </div>
+
+              <div className="config-row">
+                <label>Meeting Type:</label>
+                <select
+                  value={config.meetingType}
+                  onChange={(e) =>
+                    setConfig((prev) => ({
+                      ...prev,
+                      meetingType: e.target.value as
+                        | "teams"
+                        | "in_person"
+                        | "phone",
+                    }))
+                  }
+                >
+                  <option value="teams">Microsoft Teams</option>
+                  <option value="in_person">In Person</option>
+                  <option value="phone">Phone Call</option>
+                </select>
+              </div>
+
+              {config.meetingType === "in_person" && (
+                <div className="config-row">
+                  <label>Location:</label>
+                  <input
+                    type="text"
+                    value={config.location}
+                    onChange={(e) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        location: e.target.value,
+                      }))
+                    }
+                    placeholder="Enter meeting location"
+                  />
+                </div>
+              )}
+
+              <div className="config-row">
+                <label>Search Range:</label>
+                <select
+                  value={config.timeRange}
+                  onChange={(e) =>
+                    setConfig((prev) => ({
+                      ...prev,
+                      timeRange: parseInt(e.target.value),
+                    }))
+                  }
+                >
+                  <option value={3}>Next 3 days</option>
+                  <option value={7}>Next week</option>
+                  <option value={14}>Next 2 weeks</option>
+                  <option value={30}>Next month</option>
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="actions-section">
           <button
             className="primary-button"
             onClick={findMeetingTimes}
             disabled={loading || recipients.length === 0}
           >
-            {loading ? "Finding Times..." : "Find Meeting Times"}
-          </button>
-
-          <button
-            className="secondary-button"
-            onClick={loadRecipients}
-            disabled={loading}
-          >
-            Refresh Recipients
+            {loading ? "Finding Times..." : "Find Available Times"}
           </button>
         </div>
 
         {result && (
           <div className="results-section">
-            <h3>Proposed Meeting Times</h3>
+            <h3>Available Meeting Times</h3>
+            <p className="results-subtitle">
+              Click on a time to create the meeting automatically
+            </p>
+
             <div className="meeting-times">
               {result.proposed_times.map((time, index) => {
-                const start = formatTime(time.start);
-                const end = formatTime(time.end);
+                const timeInfo = formatTime(time.start);
+                const endTime = formatTime(time.end);
                 const confidence = Math.round(time.confidence * 100);
 
                 return (
-                  <div key={index} className="meeting-time-card">
+                  <div
+                    key={index}
+                    className={`meeting-time-card clickable confidence-${
+                      confidence >= 90
+                        ? "high"
+                        : confidence >= 70
+                        ? "medium"
+                        : "low"
+                    }`}
+                    onClick={() => createMeeting(index)}
+                  >
                     <div className="time-info">
-                      <strong>{start.date}</strong>
-                      <span>
-                        {start.time} - {end.time}
-                      </span>
+                      <div className="day-info">
+                        <strong>{timeInfo.dayOfWeek}</strong>
+                        <span>{timeInfo.date}</span>
+                      </div>
+                      <div className="time-range">
+                        {timeInfo.time} - {endTime.time}
+                      </div>
                     </div>
-                    <div
-                      className={`confidence confidence-${
-                        confidence >= 90
-                          ? "high"
-                          : confidence >= 70
-                          ? "medium"
-                          : "low"
-                      }`}
-                    >
-                      {confidence}% confidence
-                    </div>
+                    <div className="confidence-badge">{confidence}% match</div>
+                    <div className="create-button">📅 Create Meeting</div>
                   </div>
                 );
               })}
             </div>
-
-            <div className="portal-link">
-              <p>
-                <strong>Share with participants:</strong>
-              </p>
-              <code className="portal-url">{result.portal_url}</code>
-            </div>
-
-            <button className="primary-button" onClick={insertMeetingTimes}>
-              Insert Times into Email
-            </button>
           </div>
         )}
       </div>
