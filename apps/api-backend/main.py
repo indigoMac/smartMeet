@@ -17,6 +17,14 @@ load_dotenv(env_path)
 
 app = FastAPI(title="SmartMeet API", version="1.0.0")
 
+@app.on_event("startup")
+async def startup_event():
+    print("🚀 SmartMeet API starting up...")
+    print(f"Environment variables loaded:")
+    print(f"- MICROSOFT_CLIENT_ID: {'✓' if MICROSOFT_CLIENT_ID else '✗'}")
+    print(f"- GOOGLE_CLIENT_ID: {'✓' if GOOGLE_CLIENT_ID else '✗'}")
+    print(f"- FRONTEND_URL: {FRONTEND_URL}")
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -231,4 +239,5 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000) 
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port) 
