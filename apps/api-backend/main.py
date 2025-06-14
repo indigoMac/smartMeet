@@ -10,6 +10,7 @@ import jwt
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from pathlib import Path
+from contextlib import asynccontextmanager
 
 # Load environment variables from .env file in project root (only for local development)
 env_path = Path(__file__).parent.parent.parent / ".env"
@@ -17,10 +18,19 @@ env_path = Path(__file__).parent.parent.parent / ".env"
 if env_path.exists() and not any(key.startswith('RAILWAY_') for key in os.environ.keys()):
     load_dotenv(env_path)
 
-app = FastAPI(title="SmartMeet API", version="1.0.0")
+# Environment variables
+MICROSOFT_CLIENT_ID = os.getenv("MICROSOFT_CLIENT_ID")
+MICROSOFT_CLIENT_SECRET = os.getenv("MICROSOFT_CLIENT_SECRET")
+MICROSOFT_REDIRECT_URI = os.getenv("MICROSOFT_REDIRECT_URI")
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "supersecret")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
-@app.on_event("startup")
-async def startup_event():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
     print("🚀 SmartMeet API starting up...")
     print(f"Environment variables loaded:")
     print(f"- MICROSOFT_CLIENT_ID: {'✓' if MICROSOFT_CLIENT_ID else '✗'}")
@@ -34,6 +44,12 @@ async def startup_event():
             # Mask sensitive values
             display_value = value if key in ['FRONTEND_URL', 'PORT'] or key.startswith('RAILWAY_') else '***masked***'
             print(f"  {key}={display_value}")
+    
+    yield
+    # Shutdown
+    print("🛑 SmartMeet API shutting down...")
+
+app = FastAPI(title="SmartMeet API", version="1.0.0", lifespan=lifespan)
 
 # CORS middleware
 app.add_middleware(
@@ -43,16 +59,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Environment variables
-MICROSOFT_CLIENT_ID = os.getenv("MICROSOFT_CLIENT_ID")
-MICROSOFT_CLIENT_SECRET = os.getenv("MICROSOFT_CLIENT_SECRET")
-MICROSOFT_REDIRECT_URI = os.getenv("MICROSOFT_REDIRECT_URI")
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
-GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "supersecret")
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 # Pydantic models
 class AvailabilityRequest(BaseModel):
