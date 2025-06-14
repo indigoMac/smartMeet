@@ -81,6 +81,10 @@ module.exports = (env, argv) => {
             from: "src/assets",
             to: "assets",
           },
+          {
+            from: "icon-*.png",
+            to: "[name][ext]",
+          },
         ],
       }),
     ],
