@@ -13,7 +13,8 @@ from pathlib import Path
 
 # Load environment variables from .env file in project root (only for local development)
 env_path = Path(__file__).parent.parent.parent / ".env"
-if env_path.exists() and not os.getenv("RAILWAY_ENVIRONMENT"):
+# Only load .env file if we're not in Railway (Railway sets its own environment variables)
+if env_path.exists() and not any(key.startswith('RAILWAY_') for key in os.environ.keys()):
     load_dotenv(env_path)
 
 app = FastAPI(title="SmartMeet API", version="1.0.0")
@@ -25,6 +26,14 @@ async def startup_event():
     print(f"- MICROSOFT_CLIENT_ID: {'✓' if MICROSOFT_CLIENT_ID else '✗'}")
     print(f"- GOOGLE_CLIENT_ID: {'✓' if GOOGLE_CLIENT_ID else '✗'}")
     print(f"- FRONTEND_URL: {FRONTEND_URL}")
+    
+    # Debug: Print all environment variables that start with common prefixes
+    print("🔍 Debug - Environment variables:")
+    for key, value in os.environ.items():
+        if any(key.startswith(prefix) for prefix in ['MICROSOFT_', 'GOOGLE_', 'FRONTEND_', 'RAILWAY_', 'PORT']):
+            # Mask sensitive values
+            display_value = value if key in ['FRONTEND_URL', 'PORT'] or key.startswith('RAILWAY_') else '***masked***'
+            print(f"  {key}={display_value}")
 
 # CORS middleware
 app.add_middleware(
