@@ -11,9 +11,10 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from pathlib import Path
 
-# Load environment variables from .env file in project root
+# Load environment variables from .env file in project root (only for local development)
 env_path = Path(__file__).parent.parent.parent / ".env"
-load_dotenv(env_path)
+if env_path.exists() and not os.getenv("RAILWAY_ENVIRONMENT"):
+    load_dotenv(env_path)
 
 app = FastAPI(title="SmartMeet API", version="1.0.0")
 
