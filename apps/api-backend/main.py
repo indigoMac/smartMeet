@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 import os
+import gc
 from datetime import datetime, timedelta
 import uuid
 from typing import List, Dict, Any
@@ -11,6 +12,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from pathlib import Path
 from contextlib import asynccontextmanager
+import psutil
 
 # Load environment variables from .env file in project root (only for local development)
 env_path = Path(__file__).parent.parent.parent / ".env"
@@ -50,9 +52,20 @@ async def lifespan(app: FastAPI):
     print(f"🔧 Server will bind to port: {port}")
     print(f"🔧 Railway environment detected: {'✓' if any(key.startswith('RAILWAY_') for key in os.environ.keys()) else '✗'}")
     
+    # Memory optimization for Railway
+    if any(key.startswith('RAILWAY_') for key in os.environ.keys()):
+        print("🧠 Applying memory optimizations for Railway...")
+        # Force garbage collection
+        gc.collect()
+        # Set garbage collection thresholds more aggressively
+        gc.set_threshold(700, 10, 10)
+        print(f"🧠 Memory optimization applied. GC thresholds: {gc.get_threshold()}")
+    
     yield
     # Shutdown
     print("🛑 SmartMeet API shutting down...")
+    # Final cleanup
+    gc.collect()
 
 app = FastAPI(title="SmartMeet API", version="1.0.0", lifespan=lifespan)
 
@@ -68,13 +81,27 @@ app.add_middleware(
 # Request logging middleware
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    start_time = datetime.utcnow()
-    print(f"📥 Incoming request: {request.method} {request.url}")
+    # Get memory usage before request
+    process = psutil.Process(os.getpid())
+    memory_before = process.memory_info().rss / 1024 / 1024  # MB
+    
+    print(f"📥 Incoming request: {request.method} {request.url} | Memory: {memory_before:.1f}MB")
     
     response = await call_next(request)
     
+    # Get memory usage after request
+    memory_after = process.memory_info().rss / 1024 / 1024  # MB
+    memory_diff = memory_after - memory_before
+    
     process_time = (datetime.utcnow() - start_time).total_seconds()
-    print(f"📤 Response: {response.status_code} | Time: {process_time:.3f}s")
+    print(f"📤 Response: {response.status_code} | Time: {process_time:.3f}s | Memory: {memory_after:.1f}MB ({memory_diff:+.1f}MB)")
+    
+    # Force garbage collection if memory usage is high
+    if memory_after > 100:  # If using more than 100MB
+        gc.collect()
+        memory_after_gc = process.memory_info().rss / 1024 / 1024
+        if memory_after_gc < memory_after:
+            print(f"🧹 GC freed {memory_after - memory_after_gc:.1f}MB memory")
     
     return response
 
