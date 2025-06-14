@@ -45,6 +45,11 @@ async def lifespan(app: FastAPI):
             display_value = value if key in ['FRONTEND_URL', 'PORT'] or key.startswith('RAILWAY_') else '***masked***'
             print(f"  {key}={display_value}")
     
+    # Additional Railway debugging
+    port = os.getenv("PORT", "8080")
+    print(f"🔧 Server will bind to port: {port}")
+    print(f"🔧 Railway environment detected: {'✓' if any(key.startswith('RAILWAY_') for key in os.environ.keys()) else '✗'}")
+    
     yield
     # Shutdown
     print("🛑 SmartMeet API shutting down...")
@@ -59,6 +64,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Request logging middleware
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = datetime.utcnow()
+    print(f"📥 Incoming request: {request.method} {request.url}")
+    
+    response = await call_next(request)
+    
+    process_time = (datetime.utcnow() - start_time).total_seconds()
+    print(f"📤 Response: {response.status_code} | Time: {process_time:.3f}s")
+    
+    return response
 
 # Pydantic models
 class AvailabilityRequest(BaseModel):
@@ -80,6 +98,11 @@ tokens_db = {}
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
+
+@app.get("/ready")
+async def readiness_check():
+    """Readiness check endpoint for Railway"""
+    return {"status": "ready", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/connect/microsoft")
 async def microsoft_oauth_start():
