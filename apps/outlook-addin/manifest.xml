@@ -6,7 +6,7 @@
            xsi:type="MailApp">
 
     <Id>F941E618-AAC6-4780-916C-D0491304AE79</Id>
-    <Version>1.0.0.0</Version>
+    <Version>1.0.0.1</Version>
     <ProviderName>SmartMeet</ProviderName>
     <DefaultLocale>en-US</DefaultLocale>
     <DisplayName DefaultValue="SmartMeet" />
