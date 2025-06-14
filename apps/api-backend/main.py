@@ -81,28 +81,31 @@ app.add_middleware(
 # Request logging middleware
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    # Get memory usage before request
-    process = psutil.Process(os.getpid())
-    memory_before = process.memory_info().rss / 1024 / 1024  # MB
-    start_time = datetime.utcnow()
+    # Skip detailed logging for health checks to avoid overhead
+    if request.url.path in ["/health", "/ready"]:
+        return await call_next(request)
     
-    print(f"📥 Incoming request: {request.method} {request.url} | Memory: {memory_before:.1f}MB")
+    start_time = datetime.utcnow()
+    print(f"📥 Incoming request: {request.method} {request.url}")
     
     response = await call_next(request)
     
-    # Get memory usage after request
-    memory_after = process.memory_info().rss / 1024 / 1024  # MB
-    memory_diff = memory_after - memory_before
-    
     process_time = (datetime.utcnow() - start_time).total_seconds()
-    print(f"📤 Response: {response.status_code} | Time: {process_time:.3f}s | Memory: {memory_after:.1f}MB ({memory_diff:+.1f}MB)")
+    print(f"📤 Response: {response.status_code} | Time: {process_time:.3f}s")
     
-    # Force garbage collection if memory usage is high
-    if memory_after > 100:  # If using more than 100MB
-        gc.collect()
-        memory_after_gc = process.memory_info().rss / 1024 / 1024
-        if memory_after_gc < memory_after:
-            print(f"🧹 GC freed {memory_after - memory_after_gc:.1f}MB memory")
+    # Only do memory monitoring occasionally, not on every request
+    if process_time > 1.0:  # Only for slow requests
+        try:
+            process = psutil.Process(os.getpid())
+            memory_usage = process.memory_info().rss / 1024 / 1024  # MB
+            print(f"🧠 Memory usage after slow request: {memory_usage:.1f}MB")
+            
+            # Force garbage collection if memory usage is high
+            if memory_usage > 200:  # Increased threshold
+                gc.collect()
+                print("🧹 Garbage collection triggered")
+        except Exception as e:
+            print(f"⚠️ Memory monitoring error: {e}")
     
     return response
 
