@@ -84,6 +84,7 @@ async def log_requests(request: Request, call_next):
     # Get memory usage before request
     process = psutil.Process(os.getpid())
     memory_before = process.memory_info().rss / 1024 / 1024  # MB
+    start_time = datetime.utcnow()
     
     print(f"📥 Incoming request: {request.method} {request.url} | Memory: {memory_before:.1f}MB")
     
