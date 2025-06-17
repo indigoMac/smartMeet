@@ -12,13 +12,9 @@ function CallbackContent() {
   const [error, setError] = useState<string | null>(null);
   const [userToken, setUserToken] = useState<string | null>(null);
 
-  const API_BASE_URL =
-    process.env.NEXT_PUBLIC_API_URL ||
-    "https://smartmeet-production.up.railway.app";
-
   useEffect(() => {
     const handleCallback = async () => {
-      // Check for OAuth errors first
+      // Check for OAuth errors from the backend redirect
       const errorParam = searchParams.get("error");
       const errorDescription = searchParams.get("error_description");
 
@@ -32,7 +28,7 @@ function CallbackContent() {
         return;
       }
 
-      // Check if we're already on a success redirect from the backend
+      // Check if we have success parameters from the backend
       const provider = searchParams.get("provider");
       const userId = searchParams.get("user_id");
 
@@ -45,83 +41,13 @@ function CallbackContent() {
         return;
       }
 
-      // Otherwise, we need to handle the authorization code from Azure
-      const code = searchParams.get("code");
-      const state = searchParams.get("state");
-
-      if (!code || !state) {
-        setError("Missing authorization code or state parameter");
-        setStatus("error");
-        return;
-      }
-
-      try {
-        // Forward the callback to the Railway backend
-        console.log(
-          `Forwarding OAuth callback to: ${API_BASE_URL}/connect/microsoft/callback?code=${code}&state=${state}`
-        );
-
-        const response = await fetch(
-          `${API_BASE_URL}/connect/microsoft/callback?code=${code}&state=${state}`,
-          {
-            method: "GET",
-            redirect: "manual", // Don't automatically follow redirects
-          }
-        );
-
-        console.log("Backend response status:", response.status);
-        console.log(
-          "Backend response headers:",
-          Object.fromEntries(response.headers.entries())
-        );
-
-        // The backend will redirect to the success page
-        if (response.status === 307 || response.status === 302) {
-          const redirectLocation = response.headers.get("location");
-          console.log("Redirect location:", redirectLocation);
-
-          if (redirectLocation) {
-            // Extract user_id from the redirect URL
-            const url = new URL(redirectLocation);
-            const redirectUserId = url.searchParams.get("user_id");
-
-            if (redirectUserId) {
-              setUserToken(redirectUserId);
-              localStorage.setItem("smartmeet_access_token", redirectUserId);
-              setStatus("success");
-              return;
-            }
-          }
-        }
-
-        // Handle error responses
-        let errorMessage = "OAuth callback failed";
-        try {
-          const responseText = await response.text();
-          console.log("Backend response text:", responseText);
-
-          if (responseText.trim()) {
-            const data = JSON.parse(responseText);
-            errorMessage = data.detail || data.message || errorMessage;
-          } else {
-            errorMessage = `Backend returned empty response with status ${response.status}`;
-          }
-        } catch (parseError) {
-          console.error("Failed to parse backend response:", parseError);
-          errorMessage = `Backend response parsing failed (status ${response.status})`;
-        }
-
-        setError(errorMessage);
-        setStatus("error");
-      } catch (err) {
-        console.error("Callback error:", err);
-        setError(err instanceof Error ? err.message : "Network error occurred");
-        setStatus("error");
-      }
+      // If we get here without the expected parameters, it's an error
+      setError("Invalid callback - missing required parameters from backend");
+      setStatus("error");
     };
 
     handleCallback();
-  }, [searchParams, API_BASE_URL]);
+  }, [searchParams]);
 
   const closeWindow = () => {
     // Try to close the popup window
