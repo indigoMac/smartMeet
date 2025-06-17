@@ -98,9 +98,15 @@ logger.info("✅ FastAPI app created successfully")
 logger.info("🌐 Adding CORS middleware...")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=[
+        "https://smart-meet-five.vercel.app",
+        "https://smart-meet-add-in.vercel.app", 
+        "http://localhost:3000",
+        "https://localhost:3000",
+        "*"  # Keep as fallback
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],
 )
 logger.info("✅ CORS middleware added")
@@ -661,6 +667,16 @@ async def get_availability(meeting_id: str):
         raise HTTPException(status_code=404, detail="Meeting not found")
     
     return meetings_db[meeting_id]
+
+@app.get("/test-cors")
+async def test_cors():
+    """Test CORS endpoint to verify connectivity from web portal"""
+    logger.info("🧪 CORS test endpoint called")
+    return {
+        "message": "CORS test successful",
+        "timestamp": datetime.utcnow().isoformat(),
+        "headers_received": "OK"
+    }
 
 @app.get("/")
 async def root():

@@ -36,6 +36,10 @@ function CallbackContent() {
 
       try {
         // Forward the callback to your Railway backend
+        console.log(
+          `Making request to: ${API_BASE_URL}/connect/microsoft/callback?code=${code}&state=${state}`
+        );
+
         const response = await fetch(
           `${API_BASE_URL}/connect/microsoft/callback?code=${code}&state=${state}`,
           {
@@ -43,15 +47,25 @@ function CallbackContent() {
             headers: {
               "Content-Type": "application/json",
             },
+            mode: "cors", // Explicitly set CORS mode
           }
         );
 
+        console.log("Response status:", response.status);
+        console.log(
+          "Response headers:",
+          Object.fromEntries(response.headers.entries())
+        );
+
         if (!response.ok) {
-          throw new Error(`Callback failed: ${response.status}`);
+          const errorText = await response.text();
+          console.error("Response error:", errorText);
+          throw new Error(`Callback failed: ${response.status} - ${errorText}`);
         }
 
         // Check if it's a redirect response
         if (response.redirected || response.url.includes("/success")) {
+          console.log("Detected redirect response, URL:", response.url);
           // Extract user_id from the redirect URL if present
           const url = new URL(response.url);
           const userId = url.searchParams.get("user_id");
@@ -61,11 +75,13 @@ function CallbackContent() {
             // In a real implementation, you'd get the actual access token
             setUserToken(userId);
             localStorage.setItem("smartmeet_access_token", userId);
+            console.log("Stored user token:", userId);
           }
 
           setStatus("success");
         } else {
           const data = await response.json();
+          console.log("Response data:", data);
           if (data.access_token) {
             setUserToken(data.access_token);
             localStorage.setItem("smartmeet_access_token", data.access_token);
@@ -76,6 +92,12 @@ function CallbackContent() {
         }
       } catch (err) {
         console.error("Callback error:", err);
+        console.error("Error details:", {
+          name: err instanceof Error ? err.name : "Unknown",
+          message:
+            err instanceof Error ? err.message : "Unknown error occurred",
+          stack: err instanceof Error ? err.stack : undefined,
+        });
         setError(err instanceof Error ? err.message : "Unknown error occurred");
         setStatus("error");
       }
