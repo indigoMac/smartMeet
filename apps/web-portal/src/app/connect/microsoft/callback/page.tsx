@@ -12,107 +12,53 @@ function CallbackContent() {
   const [error, setError] = useState<string | null>(null);
   const [userToken, setUserToken] = useState<string | null>(null);
 
-  const API_BASE_URL =
-    process.env.NEXT_PUBLIC_API_URL ||
-    "https://smartmeet-production.up.railway.app";
-
   useEffect(() => {
     const handleCallback = async () => {
-      const code = searchParams.get("code");
-      const state = searchParams.get("state");
+      // Check for OAuth errors first
       const errorParam = searchParams.get("error");
+      const errorDescription = searchParams.get("error_description");
 
       if (errorParam) {
-        setError(`OAuth error: ${errorParam}`);
+        setError(
+          `OAuth error: ${errorParam}${
+            errorDescription ? ` - ${errorDescription}` : ""
+          }`
+        );
         setStatus("error");
         return;
       }
 
-      if (!code || !state) {
-        setError("Missing authorization code or state parameter");
-        setStatus("error");
+      // Check if we're on the success page (redirected from Railway backend)
+      const provider = searchParams.get("provider");
+      const userId = searchParams.get("user_id");
+
+      if (provider === "microsoft" && userId) {
+        // Success! The backend already handled the OAuth exchange
+        console.log("OAuth success! User ID:", userId);
+
+        // Store the user ID as our token (in a real app, you'd have a proper token)
+        setUserToken(userId);
+        localStorage.setItem("smartmeet_access_token", userId);
+
+        setStatus("success");
         return;
       }
 
-      try {
-        // Forward the callback to your Railway backend
-        console.log(
-          `Making request to: ${API_BASE_URL}/connect/microsoft/callback?code=${code}&state=${state}`
-        );
-
-        const response = await fetch(
-          `${API_BASE_URL}/connect/microsoft/callback?code=${code}&state=${state}`,
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            mode: "cors", // Explicitly set CORS mode
-          }
-        );
-
-        console.log("Response status:", response.status);
-        console.log(
-          "Response headers:",
-          Object.fromEntries(response.headers.entries())
-        );
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error("Response error:", errorText);
-          throw new Error(`Callback failed: ${response.status} - ${errorText}`);
-        }
-
-        // Check if it's a redirect response
-        if (response.redirected || response.url.includes("/success")) {
-          console.log("Detected redirect response, URL:", response.url);
-          // Extract user_id from the redirect URL if present
-          const url = new URL(response.url);
-          const userId = url.searchParams.get("user_id");
-
-          if (userId) {
-            // For now, we'll store the user_id as a token placeholder
-            // In a real implementation, you'd get the actual access token
-            setUserToken(userId);
-            localStorage.setItem("smartmeet_access_token", userId);
-            console.log("Stored user token:", userId);
-          }
-
-          setStatus("success");
-        } else {
-          const data = await response.json();
-          console.log("Response data:", data);
-          if (data.access_token) {
-            setUserToken(data.access_token);
-            localStorage.setItem("smartmeet_access_token", data.access_token);
-            setStatus("success");
-          } else {
-            throw new Error("No access token received");
-          }
-        }
-      } catch (err) {
-        console.error("Callback error:", err);
-        console.error("Error details:", {
-          name: err instanceof Error ? err.name : "Unknown",
-          message:
-            err instanceof Error ? err.message : "Unknown error occurred",
-          stack: err instanceof Error ? err.stack : undefined,
-        });
-        setError(err instanceof Error ? err.message : "Unknown error occurred");
-        setStatus("error");
-      }
+      // If we get here without the expected parameters, it's an error
+      setError("Invalid callback - missing required parameters");
+      setStatus("error");
     };
 
     handleCallback();
-  }, [searchParams, API_BASE_URL]);
+  }, [searchParams]);
 
   const closeWindow = () => {
     // Try to close the popup window
     if (window.opener) {
       window.close();
     } else {
-      // If not in a popup, redirect to success page
-      router.push("/success?provider=microsoft");
+      // If not in a popup, redirect to connect page
+      router.push("/connect");
     }
   };
 
@@ -204,7 +150,7 @@ function CallbackContent() {
 
         {userToken && (
           <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-            <p className="text-xs text-gray-500 mb-1">Token ID:</p>
+            <p className="text-xs text-gray-500 mb-1">Connection ID:</p>
             <p className="text-sm font-mono text-gray-700 break-all">
               {userToken.substring(0, 20)}...
             </p>
