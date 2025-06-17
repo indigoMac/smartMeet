@@ -57,6 +57,10 @@ function CallbackContent() {
 
       try {
         // Forward the callback to the Railway backend
+        console.log(
+          `Forwarding OAuth callback to: ${API_BASE_URL}/connect/microsoft/callback?code=${code}&state=${state}`
+        );
+
         const response = await fetch(
           `${API_BASE_URL}/connect/microsoft/callback?code=${code}&state=${state}`,
           {
@@ -65,9 +69,17 @@ function CallbackContent() {
           }
         );
 
+        console.log("Backend response status:", response.status);
+        console.log(
+          "Backend response headers:",
+          Object.fromEntries(response.headers.entries())
+        );
+
         // The backend will redirect to the success page
         if (response.status === 307 || response.status === 302) {
           const redirectLocation = response.headers.get("location");
+          console.log("Redirect location:", redirectLocation);
+
           if (redirectLocation) {
             // Extract user_id from the redirect URL
             const url = new URL(redirectLocation);
@@ -82,9 +94,24 @@ function CallbackContent() {
           }
         }
 
-        // If we get here, something went wrong
-        const data = await response.json();
-        setError(data.detail || "OAuth callback failed");
+        // Handle error responses
+        let errorMessage = "OAuth callback failed";
+        try {
+          const responseText = await response.text();
+          console.log("Backend response text:", responseText);
+
+          if (responseText.trim()) {
+            const data = JSON.parse(responseText);
+            errorMessage = data.detail || data.message || errorMessage;
+          } else {
+            errorMessage = `Backend returned empty response with status ${response.status}`;
+          }
+        } catch (parseError) {
+          console.error("Failed to parse backend response:", parseError);
+          errorMessage = `Backend response parsing failed (status ${response.status})`;
+        }
+
+        setError(errorMessage);
         setStatus("error");
       } catch (err) {
         console.error("Callback error:", err);
