@@ -12,6 +12,10 @@ function CallbackContent() {
   const [error, setError] = useState<string | null>(null);
   const [userToken, setUserToken] = useState<string | null>(null);
 
+  const API_BASE_URL =
+    process.env.NEXT_PUBLIC_API_URL ||
+    "https://smartmeet-production.up.railway.app";
+
   useEffect(() => {
     const handleCallback = async () => {
       // Check for OAuth errors first
@@ -28,29 +32,69 @@ function CallbackContent() {
         return;
       }
 
-      // Check if we're on the success page (redirected from Railway backend)
+      // Check if we're already on a success redirect from the backend
       const provider = searchParams.get("provider");
       const userId = searchParams.get("user_id");
 
       if (provider === "microsoft" && userId) {
         // Success! The backend already handled the OAuth exchange
         console.log("OAuth success! User ID:", userId);
-
-        // Store the user ID as our token (in a real app, you'd have a proper token)
         setUserToken(userId);
         localStorage.setItem("smartmeet_access_token", userId);
-
         setStatus("success");
         return;
       }
 
-      // If we get here without the expected parameters, it's an error
-      setError("Invalid callback - missing required parameters");
-      setStatus("error");
+      // Otherwise, we need to handle the authorization code from Azure
+      const code = searchParams.get("code");
+      const state = searchParams.get("state");
+
+      if (!code || !state) {
+        setError("Missing authorization code or state parameter");
+        setStatus("error");
+        return;
+      }
+
+      try {
+        // Forward the callback to the Railway backend
+        const response = await fetch(
+          `${API_BASE_URL}/connect/microsoft/callback?code=${code}&state=${state}`,
+          {
+            method: "GET",
+            redirect: "manual", // Don't automatically follow redirects
+          }
+        );
+
+        // The backend will redirect to the success page
+        if (response.status === 307 || response.status === 302) {
+          const redirectLocation = response.headers.get("location");
+          if (redirectLocation) {
+            // Extract user_id from the redirect URL
+            const url = new URL(redirectLocation);
+            const redirectUserId = url.searchParams.get("user_id");
+
+            if (redirectUserId) {
+              setUserToken(redirectUserId);
+              localStorage.setItem("smartmeet_access_token", redirectUserId);
+              setStatus("success");
+              return;
+            }
+          }
+        }
+
+        // If we get here, something went wrong
+        const data = await response.json();
+        setError(data.detail || "OAuth callback failed");
+        setStatus("error");
+      } catch (err) {
+        console.error("Callback error:", err);
+        setError(err instanceof Error ? err.message : "Network error occurred");
+        setStatus("error");
+      }
     };
 
     handleCallback();
-  }, [searchParams]);
+  }, [searchParams, API_BASE_URL]);
 
   const closeWindow = () => {
     // Try to close the popup window
