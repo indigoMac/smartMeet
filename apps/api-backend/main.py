@@ -265,6 +265,27 @@ async def microsoft_oauth_start():
     )
     return {"auth_url": auth_url, "state": state}
 
+@app.get("/connect/microsoft/addin")
+async def microsoft_oauth_start_addin():
+    """Start Microsoft OAuth flow specifically for Outlook add-ins"""
+    if not MICROSOFT_CLIENT_ID:
+        raise HTTPException(status_code=500, detail="Microsoft OAuth not configured")
+    
+    # Use the special addin callback URL
+    addin_redirect_uri = f"{FRONTEND_URL}/connect/microsoft/addin-callback"
+    
+    state = str(uuid.uuid4())
+    auth_url = (
+        f"https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
+        f"?client_id={MICROSOFT_CLIENT_ID}"
+        f"&response_type=code"
+        f"&redirect_uri={addin_redirect_uri}"
+        f"&scope=https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Calendars.ReadWrite.Shared offline_access"
+        f"&state={state}"
+        f"&response_mode=query"
+    )
+    return {"auth_url": auth_url, "state": state}
+
 @app.get("/connect/microsoft/callback")
 async def microsoft_oauth_callback(code: str, state: str):
     """Handle Microsoft OAuth callback"""
@@ -298,6 +319,61 @@ async def microsoft_oauth_callback(code: str, state: str):
         return RedirectResponse(url=f"{FRONTEND_URL}/success?provider=microsoft&user_id={user_id}")
     
     except Exception as e:
+        raise HTTPException(status_code=500, detail=f"OAuth callback failed: {str(e)}")
+
+@app.post("/connect/microsoft/callback")
+async def microsoft_oauth_callback_post(request: Request):
+    """Handle Microsoft OAuth callback for add-ins (POST method)"""
+    try:
+        body = await request.json()
+        code = body.get("code")
+        state = body.get("state")
+        redirect_uri = body.get("redirect_uri")
+        
+        if not code:
+            raise HTTPException(status_code=400, detail="Authorization code is required")
+        
+        # Use the provided redirect_uri or fall back to addin callback
+        callback_uri = redirect_uri or f"{FRONTEND_URL}/connect/microsoft/addin-callback"
+        
+        # Exchange code for tokens
+        token_url = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+        token_data = {
+            "client_id": MICROSOFT_CLIENT_ID,
+            "client_secret": MICROSOFT_CLIENT_SECRET,
+            "code": code,
+            "grant_type": "authorization_code",
+            "redirect_uri": callback_uri,
+        }
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.post(token_url, data=token_data)
+            tokens = response.json()
+        
+        if "access_token" not in tokens:
+            logger.error(f"Token exchange failed: {tokens}")
+            raise HTTPException(status_code=400, detail="Failed to get access token")
+        
+        # Store tokens (in production, associate with user)
+        user_id = str(uuid.uuid4())
+        tokens_db[user_id] = {
+            "microsoft": tokens,
+            "provider": "microsoft",
+            "created_at": datetime.utcnow().isoformat()
+        }
+        
+        logger.info(f"✅ Successfully authenticated user {user_id} via add-in")
+        
+        # Return success with token for add-in
+        return {
+            "success": True,
+            "access_token": tokens["access_token"],
+            "user_id": user_id,
+            "message": "Authentication successful"
+        }
+    
+    except Exception as e:
+        logger.error(f"❌ Add-in OAuth callback failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"OAuth callback failed: {str(e)}")
 
 @app.get("/connect/google")

@@ -77,33 +77,88 @@ const TaskPane: React.FC = () => {
   const authenticateWithMicrosoft = async () => {
     try {
       setLoading(true);
+      setError(null);
 
       // Get OAuth URL from backend
-      const response = await fetch(`${API_BASE_URL}/connect/microsoft`);
+      const response = await fetch(`${API_BASE_URL}/connect/microsoft/addin`);
       const data = await response.json();
 
-      // Open OAuth popup
-      const popup = window.open(
-        data.auth_url,
-        "oauth",
-        "width=500,height=600,scrollbars=yes,resizable=yes"
-      );
+      if (!data.auth_url) {
+        throw new Error("Failed to get authentication URL");
+      }
 
-      // Listen for OAuth completion
-      const checkClosed = setInterval(() => {
-        if (popup?.closed) {
-          clearInterval(checkClosed);
-          // Check for token in localStorage (set by OAuth callback)
-          const token = localStorage.getItem("smartmeet_access_token");
-          if (token) {
-            setAccessToken(token);
-            setIsAuthenticated(true);
+      // Use Office Dialog API instead of popup (much more reliable for add-ins)
+      Office.context.ui.displayDialogAsync(
+        data.auth_url,
+        { height: 60, width: 60, displayInIframe: false },
+        (dialogResult) => {
+          if (dialogResult.status === Office.AsyncResultStatus.Succeeded) {
+            const dialog = dialogResult.value;
+
+            // Listen for messages from the dialog (when OAuth completes)
+            dialog.addEventHandler(
+              Office.EventType.DialogMessageReceived,
+              (messageEvent: any) => {
+                try {
+                  const message = JSON.parse(messageEvent.message);
+                  console.log("Received auth message:", message);
+
+                  if (message.type === "auth_success" && message.token) {
+                    // Store the token and update auth state
+                    setAccessToken(message.token);
+                    setIsAuthenticated(true);
+                    localStorage.setItem(
+                      "smartmeet_access_token",
+                      message.token
+                    );
+                    console.log("Authentication successful!");
+                  } else if (message.type === "auth_error") {
+                    setError(message.error || "Authentication failed");
+                    console.error("Authentication error:", message.error);
+                  }
+
+                  dialog.close();
+                } catch (parseError) {
+                  console.error("Error parsing dialog message:", parseError);
+                  setError("Authentication communication error");
+                  dialog.close();
+                }
+                setLoading(false);
+              }
+            );
+
+            // Handle dialog navigation events (redirects, etc.)
+            dialog.addEventHandler(
+              Office.EventType.DialogEventReceived,
+              (eventArgs: any) => {
+                console.log("Dialog event received:", eventArgs);
+
+                // Handle various dialog events
+                if (eventArgs.error === 12006) {
+                  // User closed dialog manually
+                  console.log("User closed authentication dialog");
+                  setLoading(false);
+                } else if (eventArgs.error === 12002) {
+                  // Dialog navigation error
+                  console.error("Dialog navigation error");
+                  setError("Authentication navigation failed");
+                  setLoading(false);
+                }
+              }
+            );
+          } else {
+            console.error(
+              "Failed to open authentication dialog:",
+              dialogResult.error
+            );
+            setError("Failed to open authentication dialog");
+            setLoading(false);
           }
-          setLoading(false);
         }
-      }, 1000);
+      );
     } catch (err) {
-      setError("Failed to authenticate with Microsoft");
+      console.error("Authentication error:", err);
+      setError("Failed to start authentication process");
       setLoading(false);
     }
   };
