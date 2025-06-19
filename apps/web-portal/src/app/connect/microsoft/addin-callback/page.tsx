@@ -25,6 +25,8 @@ const AddinCallbackContent = () => {
 
   useEffect(() => {
     const handleCallback = async () => {
+      console.log("🚀 [CALLBACK-DEBUG] Starting add-in OAuth callback process");
+
       try {
         // Get parameters from URL
         const code = searchParams.get("code");
@@ -32,11 +34,12 @@ const AddinCallbackContent = () => {
         const error = searchParams.get("error");
         const errorDescription = searchParams.get("error_description");
 
-        console.log("Add-in callback params:", {
-          code: !!code,
+        console.log("📝 [CALLBACK-DEBUG] URL params:", {
+          code: code ? `${code.substring(0, 20)}...` : null,
           state,
           error,
           errorDescription,
+          fullUrl: window.location.href,
         });
 
         // Handle OAuth errors
@@ -44,16 +47,22 @@ const AddinCallbackContent = () => {
           const message = `OAuth error: ${error}${
             errorDescription ? ` - ${errorDescription}` : ""
           }`;
+          console.error("❌ [CALLBACK-DEBUG] OAuth error received:", message);
           setErrorMessage(message);
           setStatus("error");
 
           // Send error message to Office dialog parent
           if (typeof window !== "undefined" && window.Office?.context?.ui) {
+            console.log("📤 [CALLBACK-DEBUG] Sending error to Office dialog");
             window.Office.context.ui.messageParent(
               JSON.stringify({
                 type: "auth_error",
                 error: message,
               })
+            );
+          } else {
+            console.warn(
+              "⚠️ [CALLBACK-DEBUG] Office API not available for error messaging"
             );
           }
           return;
@@ -62,15 +71,23 @@ const AddinCallbackContent = () => {
         // Validate required parameters
         if (!code) {
           const message = "Authorization code not received";
+          console.error("❌ [CALLBACK-DEBUG] Missing authorization code");
           setErrorMessage(message);
           setStatus("error");
 
           if (typeof window !== "undefined" && window.Office?.context?.ui) {
+            console.log(
+              "📤 [CALLBACK-DEBUG] Sending 'no code' error to Office dialog"
+            );
             window.Office.context.ui.messageParent(
               JSON.stringify({
                 type: "auth_error",
                 error: message,
               })
+            );
+          } else {
+            console.warn(
+              "⚠️ [CALLBACK-DEBUG] Office API not available for error messaging"
             );
           }
           return;
@@ -80,6 +97,12 @@ const AddinCallbackContent = () => {
         const API_BASE_URL =
           process.env.NEXT_PUBLIC_API_URL ||
           "https://smartmeet-production.up.railway.app";
+
+        console.log("🔗 [CALLBACK-DEBUG] Making request to backend:", {
+          url: `${API_BASE_URL}/connect/microsoft/callback`,
+          method: "POST",
+          redirectUri: window.location.origin + window.location.pathname,
+        });
 
         const response = await fetch(
           `${API_BASE_URL}/connect/microsoft/callback`,
@@ -96,8 +119,20 @@ const AddinCallbackContent = () => {
           }
         );
 
+        console.log("📊 [CALLBACK-DEBUG] Backend response:", {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok,
+        });
+
         const data = await response.json();
-        console.log("Backend callback response:", data);
+        console.log("📦 [CALLBACK-DEBUG] Backend response data:", {
+          success: data.success,
+          hasAccessToken: !!data.access_token,
+          hasUserId: !!data.user_id,
+          message: data.message,
+          error: data.detail || data.error,
+        });
 
         if (!response.ok) {
           throw new Error(
@@ -106,33 +141,52 @@ const AddinCallbackContent = () => {
         }
 
         // Success! Send token to parent Office dialog
+        console.log(
+          "✅ [CALLBACK-DEBUG] Authentication successful, sending to Office dialog"
+        );
         setStatus("success");
 
         if (typeof window !== "undefined" && window.Office?.context?.ui) {
+          const messagePayload = {
+            type: "auth_success",
+            token: data.access_token || data.token || "authenticated",
+            user_id: data.user_id,
+          };
+          console.log(
+            "📤 [CALLBACK-DEBUG] Sending success message to Office:",
+            messagePayload
+          );
+
           window.Office.context.ui.messageParent(
-            JSON.stringify({
-              type: "auth_success",
-              token: data.access_token || data.token || "authenticated",
-              user_id: data.user_id,
-            })
+            JSON.stringify(messagePayload)
           );
         } else {
           // Fallback for testing outside Office
-          console.log("Authentication successful:", data);
+          console.log(
+            "⚠️ [CALLBACK-DEBUG] Office API not available, logging success locally:",
+            data
+          );
         }
       } catch (error) {
-        console.error("Callback error:", error);
+        console.error("💥 [CALLBACK-DEBUG] Callback error:", error);
         const message =
           error instanceof Error ? error.message : "Unknown error occurred";
         setErrorMessage(message);
         setStatus("error");
 
         if (typeof window !== "undefined" && window.Office?.context?.ui) {
+          console.log(
+            "📤 [CALLBACK-DEBUG] Sending exception error to Office dialog"
+          );
           window.Office.context.ui.messageParent(
             JSON.stringify({
               type: "auth_error",
               error: message,
             })
+          );
+        } else {
+          console.warn(
+            "⚠️ [CALLBACK-DEBUG] Office API not available for exception error messaging"
           );
         }
       }

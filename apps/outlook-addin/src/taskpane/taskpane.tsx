@@ -76,34 +76,62 @@ const TaskPane: React.FC = () => {
 
   const authenticateWithMicrosoft = async () => {
     try {
+      console.log("🚀 [ADDIN-DEBUG] Starting Microsoft authentication");
       setLoading(true);
       setError(null);
 
       // Get OAuth URL from backend
+      console.log(
+        "🔗 [ADDIN-DEBUG] Fetching OAuth URL from backend:",
+        `${API_BASE_URL}/connect/microsoft/addin`
+      );
       const response = await fetch(`${API_BASE_URL}/connect/microsoft/addin`);
       const data = await response.json();
 
+      console.log("📦 [ADDIN-DEBUG] Backend response:", {
+        status: response.status,
+        ok: response.ok,
+        hasAuthUrl: !!data.auth_url,
+        state: data.state,
+      });
+
       if (!data.auth_url) {
+        console.error("❌ [ADDIN-DEBUG] No auth URL received from backend");
         throw new Error("Failed to get authentication URL");
       }
 
+      console.log("🔍 [ADDIN-DEBUG] Full auth URL:", data.auth_url);
+
       // Use Office Dialog API instead of popup (much more reliable for add-ins)
+      console.log("🖼️ [ADDIN-DEBUG] Opening Office dialog with auth URL");
       Office.context.ui.displayDialogAsync(
         data.auth_url,
         { height: 60, width: 60, displayInIframe: false },
         (dialogResult) => {
+          console.log("📋 [ADDIN-DEBUG] Dialog open result:", {
+            status: dialogResult.status,
+            success: dialogResult.status === Office.AsyncResultStatus.Succeeded,
+            error: dialogResult.error,
+          });
+
           if (dialogResult.status === Office.AsyncResultStatus.Succeeded) {
             const dialog = dialogResult.value;
+            console.log("✅ [ADDIN-DEBUG] Dialog opened successfully");
 
             // Listen for messages from the dialog (when OAuth completes)
             dialog.addEventHandler(
               Office.EventType.DialogMessageReceived,
               (messageEvent: any) => {
+                console.log(
+                  "💬 [ADDIN-DEBUG] Message received from dialog:",
+                  messageEvent
+                );
                 try {
                   const message = JSON.parse(messageEvent.message);
-                  console.log("Received auth message:", message);
+                  console.log("📝 [ADDIN-DEBUG] Parsed message:", message);
 
                   if (message.type === "auth_success" && message.token) {
+                    console.log("🎉 [ADDIN-DEBUG] Authentication successful!");
                     // Store the token and update auth state
                     setAccessToken(message.token);
                     setIsAuthenticated(true);
@@ -111,15 +139,27 @@ const TaskPane: React.FC = () => {
                       "smartmeet_access_token",
                       message.token
                     );
-                    console.log("Authentication successful!");
+                    console.log("💾 [ADDIN-DEBUG] Token stored locally");
                   } else if (message.type === "auth_error") {
+                    console.error(
+                      "❌ [ADDIN-DEBUG] Authentication error from dialog:",
+                      message.error
+                    );
                     setError(message.error || "Authentication failed");
-                    console.error("Authentication error:", message.error);
+                  } else {
+                    console.warn(
+                      "⚠️ [ADDIN-DEBUG] Unexpected message type:",
+                      message.type
+                    );
                   }
 
+                  console.log("🔐 [ADDIN-DEBUG] Closing dialog");
                   dialog.close();
                 } catch (parseError) {
-                  console.error("Error parsing dialog message:", parseError);
+                  console.error(
+                    "💥 [ADDIN-DEBUG] Error parsing dialog message:",
+                    parseError
+                  );
                   setError("Authentication communication error");
                   dialog.close();
                 }
@@ -131,24 +171,34 @@ const TaskPane: React.FC = () => {
             dialog.addEventHandler(
               Office.EventType.DialogEventReceived,
               (eventArgs: any) => {
-                console.log("Dialog event received:", eventArgs);
+                console.log(
+                  "🚦 [ADDIN-DEBUG] Dialog event received:",
+                  eventArgs
+                );
 
                 // Handle various dialog events
                 if (eventArgs.error === 12006) {
                   // User closed dialog manually
-                  console.log("User closed authentication dialog");
+                  console.log(
+                    "👤 [ADDIN-DEBUG] User closed authentication dialog"
+                  );
                   setLoading(false);
                 } else if (eventArgs.error === 12002) {
                   // Dialog navigation error
-                  console.error("Dialog navigation error");
+                  console.error("🚫 [ADDIN-DEBUG] Dialog navigation error");
                   setError("Authentication navigation failed");
                   setLoading(false);
+                } else {
+                  console.log(
+                    "ℹ️ [ADDIN-DEBUG] Other dialog event:",
+                    eventArgs.error
+                  );
                 }
               }
             );
           } else {
             console.error(
-              "Failed to open authentication dialog:",
+              "💥 [ADDIN-DEBUG] Failed to open authentication dialog:",
               dialogResult.error
             );
             setError("Failed to open authentication dialog");
@@ -157,7 +207,7 @@ const TaskPane: React.FC = () => {
         }
       );
     } catch (err) {
-      console.error("Authentication error:", err);
+      console.error("💥 [ADDIN-DEBUG] Authentication error:", err);
       setError("Failed to start authentication process");
       setLoading(false);
     }
