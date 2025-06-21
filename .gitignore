@@ -15,6 +15,7 @@ coverage/
 .env
 .env.*
 *.env
+.env.local
 
 # Office Add-in dev certs
 .office-addin-dev-certs/

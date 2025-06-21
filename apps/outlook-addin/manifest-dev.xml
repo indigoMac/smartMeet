@@ -1,24 +1,25 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<OfficeApp
-    xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
-    xmlns:mailappor="http://schemas.microsoft.com/office/mailappversionoverrides/1.0"
-    xsi:type="MailApp">
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1" 
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+           xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0" 
+           xmlns:mailappor="http://schemas.microsoft.com/office/mailappversionoverrides/1.0" 
+           xsi:type="MailApp">
 
-    <Id>12345678-1234-1234-1234-123456789abc</Id>
-    <Version>1.0.0.0</Version>
-    <ProviderName>SmartMeet</ProviderName>
+    <Id>F941E618-AAC6-4780-916C-D0491304AE79</Id>
+    <Version>1.0.0.6</Version>
+    <ProviderName>SmartMeet (Development)</ProviderName>
     <DefaultLocale>en-US</DefaultLocale>
-    <DisplayName DefaultValue="SmartMeet (Dev)"/>
-    <Description DefaultValue="Find optimal meeting times across multiple calendars (Development)"/>
-    <IconUrl DefaultValue="https://localhost:3000/assets/icon-32.png"/>
-    <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/icon-80.png"/>
-    <SupportUrl DefaultValue="https://localhost:3000"/>
+    <DisplayName DefaultValue="SmartMeet DEV - Automated Meeting Scheduler"/>
+    <Description DefaultValue="[DEV] Streamline your meeting scheduling with AI-powered automation. Create meetings, send invites, and manage your calendar effortlessly."/>
+    <IconUrl DefaultValue="https://6140-62-197-59-137.ngrok-free.app/icon-64.png"/>
+    <HighResolutionIconUrl DefaultValue="https://6140-62-197-59-137.ngrok-free.app/icon-128.png"/>
+    <SupportUrl DefaultValue="https://6140-62-197-59-137.ngrok-free.app/support"/>
 
     <AppDomains>
-        <AppDomain>https://localhost:3000</AppDomain>
+        <AppDomain>https://6140-62-197-59-137.ngrok-free.app</AppDomain>
         <AppDomain>http://localhost:8000</AppDomain>
+        <AppDomain>https://login.microsoftonline.com</AppDomain>
+        <AppDomain>https://graph.microsoft.com</AppDomain>
     </AppDomains>
 
     <Hosts>
@@ -34,17 +35,23 @@
     <FormSettings>
         <Form xsi:type="ItemRead">
             <DesktopSettings>
-                <SourceLocation DefaultValue="https://localhost:3000/taskpane.html"/>
-                <RequestedHeight>250</RequestedHeight>
+                <SourceLocation DefaultValue="https://6140-62-197-59-137.ngrok-free.app/taskpane.html"/>
+                <RequestedHeight>320</RequestedHeight>
+            </DesktopSettings>
+        </Form>
+        <Form xsi:type="ItemEdit">
+            <DesktopSettings>
+                <SourceLocation DefaultValue="https://6140-62-197-59-137.ngrok-free.app/taskpane.html"/>
             </DesktopSettings>
         </Form>
     </FormSettings>
 
-    <Permissions>ReadWriteItem</Permissions>
+    <Permissions>ReadWriteMailbox</Permissions>
 
     <Rule xsi:type="RuleCollection" Mode="Or">
         <Rule xsi:type="ItemIs" ItemType="Message" FormType="Read"/>
         <Rule xsi:type="ItemIs" ItemType="Message" FormType="Edit"/>
+        <Rule xsi:type="ItemIs" ItemType="Appointment" FormType="Read"/>
         <Rule xsi:type="ItemIs" ItemType="Appointment" FormType="Edit"/>
     </Rule>
 
@@ -60,8 +67,6 @@
         <Hosts>
             <Host xsi:type="MailHost">
                 <DesktopFormFactor>
-                    <FunctionFile resid="Commands.Url"/>
-
                     <ExtensionPoint xsi:type="MessageReadCommandSurface">
                         <OfficeTab id="TabDefault">
                             <Group id="msgReadGroup">
@@ -78,7 +83,6 @@
                                         <bt:Image size="80" resid="Icon.80x80"/>
                                     </Icon>
                                     <Action xsi:type="ShowTaskpane">
-                                        <TaskpaneId>ButtonId1</TaskpaneId>
                                         <SourceLocation resid="Taskpane.Url"/>
                                     </Action>
                                 </Control>
@@ -102,7 +106,6 @@
                                         <bt:Image size="80" resid="Icon.80x80"/>
                                     </Icon>
                                     <Action xsi:type="ShowTaskpane">
-                                        <TaskpaneId>ButtonId1</TaskpaneId>
                                         <SourceLocation resid="Taskpane.Url"/>
                                     </Action>
                                 </Control>
@@ -115,20 +118,19 @@
 
         <Resources>
             <bt:Images>
-                <bt:Image id="Icon.16x16" DefaultValue="https://localhost:3000/assets/icon-16.png"/>
-                <bt:Image id="Icon.32x32" DefaultValue="https://localhost:3000/assets/icon-32.png"/>
-                <bt:Image id="Icon.80x80" DefaultValue="https://localhost:3000/assets/icon-80.png"/>
+                <bt:Image id="Icon.16x16" DefaultValue="https://6140-62-197-59-137.ngrok-free.app/icon-16.png"/>
+                <bt:Image id="Icon.32x32" DefaultValue="https://6140-62-197-59-137.ngrok-free.app/icon-32.png"/>
+                <bt:Image id="Icon.80x80" DefaultValue="https://6140-62-197-59-137.ngrok-free.app/icon-80.png"/>
             </bt:Images>
             <bt:Urls>
-                <bt:Url id="Commands.Url" DefaultValue="https://localhost:3000/commands.html"/>
-                <bt:Url id="Taskpane.Url" DefaultValue="https://localhost:3000/taskpane.html"/>
+                <bt:Url id="Taskpane.Url" DefaultValue="https://6140-62-197-59-137.ngrok-free.app/taskpane.html"/>
             </bt:Urls>
             <bt:ShortStrings>
-                <bt:String id="GroupLabel" DefaultValue="SmartMeet"/>
-                <bt:String id="TaskpaneButton.Label" DefaultValue="Find Meeting Times"/>
+                <bt:String id="GroupLabel" DefaultValue="SmartMeet DEV"/>
+                <bt:String id="TaskpaneButton.Label" DefaultValue="Schedule Meeting"/>
             </bt:ShortStrings>
             <bt:LongStrings>
-                <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Find optimal meeting times across calendars"/>
+                <bt:String id="TaskpaneButton.Tooltip" DefaultValue="[DEV] Automatically schedule meetings across calendars"/>
             </bt:LongStrings>
         </Resources>
     </VersionOverrides>

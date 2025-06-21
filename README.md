@@ -1,6 +1,6 @@
 # SmartMeet
 
-A professional-grade productivity tool that simplifies external meeting scheduling via an Outlook add-in and secure backend infrastructure.
+A professional-grade productivity tool that simplifies internal and external meeting scheduling via an Outlook add-in and secure backend infrastructure.
 
 ## What SmartMeet Does
 
@@ -153,4 +153,5 @@ The add-in manifest references the Vercel deployment:
 ## License
 
 MIT License
+
 # Force deployment Fri Jun 13 16:13:02 BST 2025

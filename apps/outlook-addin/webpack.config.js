@@ -29,7 +29,6 @@ module.exports = (env, argv) => {
   return {
     entry: {
       taskpane: "./src/taskpane/index.tsx",
-      commands: "./src/commands/commands.ts",
     },
     output: {
       path: path.resolve(__dirname, "dist"),
@@ -62,11 +61,6 @@ module.exports = (env, argv) => {
         filename: "taskpane.html",
         chunks: ["taskpane"],
       }),
-      new HtmlWebpackPlugin({
-        template: "./src/commands/commands.html",
-        filename: "commands.html",
-        chunks: ["commands"],
-      }),
       new CopyWebpackPlugin({
         patterns: [
           {
@@ -74,15 +68,19 @@ module.exports = (env, argv) => {
             to: "manifest.xml",
           },
           {
-            from: "manifest.dev.xml",
-            to: "manifest.dev.xml",
+            from: "manifest-dev.xml",
+            to: "manifest-dev.xml",
           },
           {
             from: "src/assets",
             to: "assets",
           },
           {
-            from: "icon-*.png",
+            from: "src/assets/icon-*.png",
+            to: "[name][ext]",
+          },
+          {
+            from: "src/assets/icon-*.svg",
             to: "[name][ext]",
           },
         ],
@@ -92,9 +90,13 @@ module.exports = (env, argv) => {
       static: {
         directory: path.join(__dirname, "dist"),
       },
-      port: 3000,
+      port: 3001,
       hot: true,
       https: httpsOptions,
+      allowedHosts: "all",
+      client: {
+        overlay: false,
+      },
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods":

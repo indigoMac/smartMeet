@@ -1,0 +1,14 @@
+{
+  "name": "smartmeet",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "cd apps/outlook-addin && npm run start",
+    "dev:addin": "cd apps/outlook-addin && npm run start",
+    "build:addin": "cd apps/outlook-addin && npm run build",
+    "validate:addin": "cd apps/outlook-addin && npm run validate"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
