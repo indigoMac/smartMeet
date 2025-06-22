@@ -25,8 +25,8 @@ from models import (
 )
 
 # Set up logging
-# logging.basicConfig(level=logging.INFO)
-# logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # OAuth Configuration
 MICROSOFT_CLIENT_ID = os.getenv("MICROSOFT_CLIENT_ID")
@@ -37,10 +37,12 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 
 # Support both localhost and production
-# FRONTEND_URL = os.getenv("FRONTEND_URL", "https://6140-62-197-59-137.ngrok-free.app")
+FRONTEND_URL = os.getenv("FRONTEND_URL")
+if not FRONTEND_URL:
+    raise ValueError("FRONTEND_URL environment variable is required")
 
 # # Database setup
-# DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./smartmeet.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./smartmeet.db")
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
